@@ -11,11 +11,17 @@ use studio_render::{Camera, Viewport};
 
 fn graphics_options() -> eframe::egui_wgpu::WgpuConfiguration {
     let mut options = eframe::egui_wgpu::WgpuConfiguration::default();
+    options.surface.desired_maximum_frame_latency = Some(1);
     if let eframe::egui_wgpu::WgpuSetup::CreateNew(setup) = &mut options.wgpu_setup {
         setup.device_descriptor = std::sync::Arc::new(|adapter| eframe::wgpu::DeviceDescriptor {
             label: Some("Cubilo compatible graphics device"),
-            required_limits: eframe::wgpu::Limits::downlevel_defaults()
-                .using_resolution(adapter.limits()),
+            required_limits: eframe::wgpu::Limits {
+                // DX12 eagerly allocates this descriptor heap. The million-entry
+                // default is unnecessary for our bounded 5,000-object scene.
+                max_non_sampler_bindings: 8192.min(adapter.limits().max_non_sampler_bindings),
+                ..eframe::wgpu::Limits::downlevel_defaults().using_resolution(adapter.limits())
+            },
+            memory_hints: eframe::wgpu::MemoryHints::MemoryUsage,
             ..Default::default()
         });
     }

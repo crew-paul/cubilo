@@ -191,7 +191,7 @@ impl Viewport {
     }
     pub fn resize(&mut self, device: &wgpu::Device, size: [u32; 2]) -> bool {
         let max = device.limits().max_texture_dimension_2d;
-        let size = size.map(|v| v.clamp(1, max));
+        let size = bounded_render_size(size, max);
         if self.size == size {
             return false;
         }
@@ -421,5 +421,34 @@ mod tests {
         viewport.set_scene(&device, &evaluator.evaluate(&editor.scene).unwrap());
         viewport.render(&device, &queue, &Camera::default(), &BTreeSet::new());
         device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+    }
+}
+
+/// Bound color+depth to roughly 16 MiB even on high-DPI/4K screens.
+fn bounded_render_size(size: [u32; 2], max_dimension: u32) -> [u32; 2] {
+    let [w, h] = size.map(|v| v.max(1) as f64);
+    let edge = max_dimension.clamp(1, 2048) as f64;
+    let scale = (edge / w)
+        .min(edge / h)
+        .min((1920. * 1080. / (w * h)).sqrt())
+        .min(1.);
+    [
+        (w * scale).floor().max(1.) as u32,
+        (h * scale).floor().max(1.) as u32,
+    ]
+}
+#[cfg(test)]
+mod memory_tests {
+    use super::*;
+    #[test]
+    fn render_targets_keep_aspect_and_stay_within_memory_and_device_limits() {
+        assert_eq!(bounded_render_size([3840, 2160], 16384), [1920, 1080]);
+        assert_eq!(bounded_render_size([3840, 2160], 1024), [1024, 576]);
+        assert_eq!(bounded_render_size([800, 600], 4096), [800, 600]);
+        for size in [[0, 0], [u32::MAX, u32::MAX], [1, u32::MAX], [1000, 4000]] {
+            let bounded = bounded_render_size(size, 4096);
+            assert!(bounded.iter().all(|v| (1..=2048).contains(v)));
+            assert!(u64::from(bounded[0]) * u64::from(bounded[1]) <= 1920 * 1080);
+        }
     }
 }
