@@ -9,20 +9,48 @@ use std::{
 use studio_core::{Command, Editor, Evaluated, Node, NodeId, NodeKind, Primitive, Scene};
 use studio_render::{Camera, Viewport};
 
+fn preferred_backends(
+    windows: bool,
+    explicit: Option<eframe::wgpu::Backends>,
+) -> eframe::wgpu::Backends {
+    explicit.unwrap_or_else(|| {
+        if windows {
+            eframe::wgpu::Backends::DX12
+        } else {
+            eframe::wgpu::Backends::PRIMARY | eframe::wgpu::Backends::GL
+        }
+    })
+}
 fn graphics_options() -> eframe::egui_wgpu::WgpuConfiguration {
     let mut options = eframe::egui_wgpu::WgpuConfiguration::default();
     options.surface.desired_maximum_frame_latency = Some(1);
     if let eframe::egui_wgpu::WgpuSetup::CreateNew(setup) = &mut options.wgpu_setup {
-        setup.device_descriptor = std::sync::Arc::new(|adapter| eframe::wgpu::DeviceDescriptor {
-            label: Some("Cubilo compatible graphics device"),
-            required_limits: eframe::wgpu::Limits {
-                // DX12 eagerly allocates this descriptor heap. The million-entry
-                // default is unnecessary for our bounded 5,000-object scene.
-                max_non_sampler_bindings: 8192.min(adapter.limits().max_non_sampler_bindings),
-                ..eframe::wgpu::Limits::downlevel_defaults().using_resolution(adapter.limits())
-            },
-            memory_hints: eframe::wgpu::MemoryHints::MemoryUsage,
-            ..Default::default()
+        setup.instance_descriptor.backends =
+            preferred_backends(cfg!(windows), eframe::wgpu::Backends::from_env());
+        log::info!(
+            "Configured graphics backends: {:?}",
+            setup.instance_descriptor.backends
+        );
+        setup.device_descriptor = std::sync::Arc::new(|adapter| {
+            let info = adapter.get_info();
+            log::info!(
+                "Creating graphics device: {} ({:?}), driver {} {}",
+                info.name,
+                info.backend,
+                info.driver,
+                info.driver_info
+            );
+            eframe::wgpu::DeviceDescriptor {
+                label: Some("Cubilo compatible graphics device"),
+                required_limits: eframe::wgpu::Limits {
+                    // DX12 eagerly allocates this descriptor heap. The million-entry
+                    // default is unnecessary for our bounded 5,000-object scene.
+                    max_non_sampler_bindings: 8192.min(adapter.limits().max_non_sampler_bindings),
+                    ..eframe::wgpu::Limits::downlevel_defaults().using_resolution(adapter.limits())
+                },
+                memory_hints: eframe::wgpu::MemoryHints::MemoryUsage,
+                ..Default::default()
+            }
         });
     }
     options
@@ -1263,4 +1291,20 @@ fn ground(origin: glam::DVec3, direction: glam::DVec3) -> Option<glam::DVec3> {
     }
     let t = -origin.z / direction.z;
     (t >= 0.0).then_some(origin + direction * t)
+}
+
+#[cfg(test)]
+mod graphics_tests {
+    use super::*;
+    #[test]
+    fn windows_default_excludes_vulkan_but_keeps_explicit_compatibility_modes() {
+        use eframe::wgpu::Backends;
+        assert_eq!(preferred_backends(true, None), Backends::DX12);
+        assert_eq!(preferred_backends(true, Some(Backends::GL)), Backends::GL);
+        assert_eq!(
+            preferred_backends(true, Some(Backends::VULKAN)),
+            Backends::VULKAN
+        );
+        assert!(preferred_backends(false, None).contains(Backends::METAL));
+    }
 }

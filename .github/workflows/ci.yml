@@ -43,7 +43,7 @@ jobs:
           }
           & $exe --output-dir "$env:RUNNER_TEMP\cubilo-portable-smoke"
           if ($LASTEXITCODE -ne 0) { throw 'Portable executable smoke test failed' }
-          $env:WGPU_BACKEND = 'dx12'
+          Remove-Item Env:WGPU_BACKEND -ErrorAction SilentlyContinue
           $process = Start-Process -FilePath $exe -ArgumentList '--startup-smoke' -PassThru
           if (!$process.WaitForExit(60000)) {
             $process.Kill()
@@ -54,6 +54,9 @@ jobs:
           if ($process.ExitCode -ne 0) { throw 'GUI startup failed' }
           if (!(Select-String -Path $startupLog -SimpleMatch 'GUI startup smoke passed')) {
             throw 'GUI did not complete its rendering check'
+          }
+          if (!(Select-String -Path $startupLog -Pattern 'Creating graphics device:.*Dx12')) {
+            throw 'Windows default graphics path was not DirectX 12'
           }
       - uses: actions/upload-artifact@v4
         with:
