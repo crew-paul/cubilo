@@ -2957,6 +2957,7 @@ dependencies = [
  "directories",
  "eframe",
  "glam",
+ "log",
  "rfd",
  "studio-core",
  "studio-geometry",

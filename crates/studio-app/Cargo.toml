@@ -12,6 +12,7 @@ studio-render = { path = "../studio-render" }
 studio-core = { path = "../studio-core" }
 directories = "6"
 rfd = "=0.18.0"
+log = { version = "0.4", features = ["std"] }
 
 [dev-dependencies]
 tempfile = "3"

@@ -13,11 +13,14 @@ mod gizmo;
 mod gui;
 mod resize;
 mod sketch;
+mod startup;
 mod worker;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    if env::args_os().len() == 1 {
-        return gui::run().map_err(|e| e.to_string().into());
+    let smoke = env::args_os().len() == 2
+        && env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--startup-smoke"));
+    if env::args_os().len() == 1 || smoke {
+        return startup::run(smoke).map_err(Into::into);
     }
     let mut args = env::args_os().skip(1);
     let flag = args.next();

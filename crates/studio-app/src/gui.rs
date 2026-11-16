@@ -9,20 +9,39 @@ use std::{
 use studio_core::{Command, Editor, Evaluated, Node, NodeId, NodeKind, Primitive, Scene};
 use studio_render::{Camera, Viewport};
 
-pub fn run() -> eframe::Result {
+fn graphics_options() -> eframe::egui_wgpu::WgpuConfiguration {
+    let mut options = eframe::egui_wgpu::WgpuConfiguration::default();
+    if let eframe::egui_wgpu::WgpuSetup::CreateNew(setup) = &mut options.wgpu_setup {
+        setup.device_descriptor = std::sync::Arc::new(|adapter| eframe::wgpu::DeviceDescriptor {
+            label: Some("Cubilo compatible graphics device"),
+            required_limits: eframe::wgpu::Limits::downlevel_defaults()
+                .using_resolution(adapter.limits()),
+            ..Default::default()
+        });
+    }
+    options
+}
+pub fn run(smoke: bool) -> eframe::Result {
     eframe::run_native(
         "큐빌로",
         eframe::NativeOptions {
             renderer: eframe::Renderer::Wgpu,
+            wgpu_options: graphics_options(),
             viewport: egui::ViewportBuilder::default()
                 .with_inner_size([1180.0, 760.0])
                 .with_min_inner_size([900.0, 600.0]),
             ..Default::default()
         },
-        Box::new(|cc| Ok(Box::new(Studio::new(cc)))),
+        Box::new(move |cc| {
+            let mut app = Studio::new(cc);
+            app.startup_smoke = smoke;
+            Ok(Box::new(app))
+        }),
     )
 }
 struct Studio {
+    startup_smoke: bool,
+    smoke_frames: u8,
     gpu: RenderState,
     viewport: Viewport,
     texture: egui::TextureId,
@@ -77,9 +96,11 @@ impl Studio {
             .clone()
             .expect("wgpu renderer required");
         let info = gpu.adapter.get_info();
-        eprintln!(
+        log::info!(
             "Cubilo GPU: {} {:?} {:?}",
-            info.name, info.backend, info.device_type
+            info.name,
+            info.backend,
+            info.device_type
         );
         let viewport = Viewport::new(&gpu.device);
         let texture = gpu.renderer.write().register_native_texture(
@@ -105,6 +126,8 @@ impl Studio {
             .collect();
         let saved_scene = Scene::default();
         Self {
+            startup_smoke: false,
+            smoke_frames: 0,
             gpu,
             viewport,
             texture,
@@ -1195,9 +1218,27 @@ impl eframe::App for Studio {
                     });
                 });
         }
-        self.autosave(ui.ctx());
+        if self.startup_smoke {
+            if self.rendered_revision == self.editor.revision {
+                self.smoke_frames += 1;
+                if self.smoke_frames >= 3 {
+                    self.gpu
+                        .device
+                        .poll(eframe::wgpu::PollType::wait_indefinitely())
+                        .expect("startup graphics submission");
+                    log::info!("GUI startup smoke passed: scene rendered for three frames");
+                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                }
+            }
+            ui.ctx().request_repaint();
+        } else {
+            self.autosave(ui.ctx());
+        }
     }
     fn on_exit(&mut self) {
+        if self.startup_smoke {
+            return;
+        }
         if self.recoverable.is_some() {
             return;
         }

@@ -43,6 +43,18 @@ jobs:
           }
           & $exe --output-dir "$env:RUNNER_TEMP\cubilo-portable-smoke"
           if ($LASTEXITCODE -ne 0) { throw 'Portable executable smoke test failed' }
+          $env:WGPU_BACKEND = 'dx12'
+          $process = Start-Process -FilePath $exe -ArgumentList '--startup-smoke' -PassThru
+          if (!$process.WaitForExit(60000)) {
+            $process.Kill()
+            throw 'GUI startup timed out'
+          }
+          $startupLog = Join-Path $env:LOCALAPPDATA 'Cubilo\startup.log'
+          if (Test-Path $startupLog) { Get-Content $startupLog }
+          if ($process.ExitCode -ne 0) { throw 'GUI startup failed' }
+          if (!(Select-String -Path $startupLog -SimpleMatch 'GUI startup smoke passed')) {
+            throw 'GUI did not complete its rendering check'
+          }
       - uses: actions/upload-artifact@v4
         with:
           name: cubilo-${{ matrix.os }}
