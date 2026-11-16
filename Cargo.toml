@@ -1,0 +1,3 @@
+[workspace]
+members = ["crates/studio-geometry", "crates/studio-io", "crates/studio-app", "crates/studio-render", "crates/studio-core"]
+resolver = "2"

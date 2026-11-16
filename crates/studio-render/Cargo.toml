@@ -1,0 +1,13 @@
+[package]
+name = "studio-render"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+wgpu = "=30.0.2"
+glam = "0.30"
+studio-geometry = { path = "../studio-geometry" }
+studio-core = { path = "../studio-core" }
+
+[dev-dependencies]
+pollster = "1"

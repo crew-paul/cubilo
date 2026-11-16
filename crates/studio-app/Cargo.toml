@@ -1,0 +1,17 @@
+[package]
+name = "studio-app"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+studio-geometry = { path = "../studio-geometry" }
+studio-io = { path = "../studio-io" }
+eframe = { version = "=0.37.0", default-features = false, features = ["default_fonts", "wgpu", "x11", "wayland", "clipboard", "accesskit"] }
+glam = "0.30"
+studio-render = { path = "../studio-render" }
+studio-core = { path = "../studio-core" }
+directories = "6"
+rfd = "=0.18.0"
+
+[dev-dependencies]
+tempfile = "3"

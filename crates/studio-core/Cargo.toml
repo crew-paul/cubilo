@@ -1,0 +1,8 @@
+[package]
+name = "studio-core"
+version = "0.1.0"
+edition = "2021"
+[dependencies]
+studio-geometry = { path = "../studio-geometry" }
+serde = { version = "1", features = ["derive"] }
+glam = "0.30"

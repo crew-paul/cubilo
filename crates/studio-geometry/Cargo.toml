@@ -1,0 +1,11 @@
+[package]
+name = "studio-geometry"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+earcutr = "=0.5.0"
+manifold-rust = { version = "=0.19.2", default-features = false }
+rustybuzz = "=0.20.1"
+unicode-normalization = "0.1"

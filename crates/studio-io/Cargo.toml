@@ -1,0 +1,10 @@
+[package]
+name = "studio-io"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+studio-geometry = { path = "../studio-geometry" }
+studio-core = { path = "../studio-core" }
+serde_json = { version = "1", features = ["float_roundtrip"] }
+tempfile = "3"
