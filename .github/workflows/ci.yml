@@ -9,8 +9,14 @@ jobs:
   check:
     strategy:
       matrix:
-        os: [macos-latest, windows-latest]
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
     runs-on: ${{ matrix.os }}
+    env:
+      CARGO_BUILD_TARGET: ${{ matrix.target }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -20,11 +26,28 @@ jobs:
       - run: cargo test --workspace --locked
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo build -p studio-app --release --locked
+      - name: Verify portable Windows executable
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vs = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          $dumpbin = Get-ChildItem "$vs\VC\Tools\MSVC\*\bin\Hostx64\x64\dumpbin.exe" | Sort-Object FullName -Descending | Select-Object -First 1
+          if (!$dumpbin) { throw 'MSVC dependency inspector not found' }
+          $exe = 'target/${{ matrix.target }}/release/studio-app.exe'
+          $imports = & $dumpbin.FullName /DEPENDENTS $exe
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect Windows executable' }
+          $imports | Write-Output
+          if ($imports -match '(?i)(vcruntime\w*\.dll|msvcp\w*\.dll|msvcr\w*\.dll|ucrtbase\.dll|api-ms-win-crt-)') {
+            throw 'Portable executable still imports a separate C/C++ runtime'
+          }
+          & $exe --output-dir "$env:RUNNER_TEMP\cubilo-portable-smoke"
+          if ($LASTEXITCODE -ne 0) { throw 'Portable executable smoke test failed' }
       - uses: actions/upload-artifact@v4
         with:
           name: cubilo-${{ matrix.os }}
           path: |
-            target/release/studio-app
-            target/release/studio-app.exe
+            target/${{ matrix.target }}/release/studio-app
+            target/${{ matrix.target }}/release/studio-app.exe
             assets/fonts/OFL-NanumGothic.txt
           if-no-files-found: error
